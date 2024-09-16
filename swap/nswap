@@ -147,7 +147,7 @@ fi
 echo -e "${RED}This table provides a summary of system swap usage as reported by different methods.${NC}"
 
 # Print results table
-printf "${BLUE}%-12s %-20s %-20s %-20s${NC}\n" "Method" "Total (GB/MB/KB)" "Used (GB/MB/KB)" "Free (GB/MB/KB)"
+printf "${BLUE}%-12s %-20s %-20s %-20s${NC}\n" "Method" "Total " "Used " "Free "
 printf "${YELLOW}%-12s %-20s %-20s %-20s${NC}\n" "------" "------------------" "-----------------" "----------------"
 
 # Display formatted output
