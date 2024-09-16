@@ -1,0 +1,160 @@
+#!/bin/bash
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Error handling function
+error_exit() {
+    echo -e "${RED}Error: $1${NC}" >&2
+    exit 1
+}
+
+# Help function
+print_help() {
+    echo -e "${BLUE}Usage:${NC} $0 [OPTIONS]"
+    echo -e "This script provides a summary of system swap usage using various methods."
+    echo -e ""
+    echo -e "${YELLOW}Options:${NC}"
+    echo -e "  -h, --help       Show this help message and exit"
+}
+
+# Check if the script is running on Linux
+if [[ "$(uname -s)" != "Linux" ]]; then
+    error_exit "This script is only compatible with Linux operating systems."
+fi
+
+# Function to convert KB to human-readable format
+convert_to_human_readable() {
+    local size_kb=$1
+    if [[ -z "$size_kb" || $(echo "$size_kb <= 0" | bc -l) -eq 1 ]]; then
+        echo "0 KB"
+        return
+    fi
+    
+    if (( $(echo "$size_kb >= 1048576" | bc -l) )); then
+        echo "$(echo "scale=2; $size_kb / 1048576" | bc) GB"
+    elif (( $(echo "$size_kb >= 1024" | bc -l) )); then
+        echo "$(echo "scale=2; $size_kb / 1024" | bc) MB"
+    else
+        echo "${size_kb} KB"
+    fi
+}
+
+# Function to check if a command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Handle options
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    print_help
+    exit 0
+fi
+
+# Dictionary to store results
+declare -A total_results
+
+# Initialize results
+for method in free swapon proc vmstat top; do
+    total_results[${method}_total]="N/A"
+    total_results[${method}_used]="N/A"
+    total_results[${method}_free]="N/A"
+done
+
+# 1. free command
+if command_exists free; then
+    swap_info=$(free -k | awk '/Swap:/ {print $2, $3, $4}')
+    total_results[free_total]="$(convert_to_human_readable $(echo $swap_info | awk '{print $1}'))"
+    total_results[free_used]="$(convert_to_human_readable $(echo $swap_info | awk '{print $2}'))"
+    total_results[free_free]="$(convert_to_human_readable $(echo $swap_info | awk '{print $3}'))"
+fi
+
+# 2. swapon command
+if command_exists swapon; then
+    total=0
+    used=0
+
+    # Sum sizes of all swap devices
+    while read -r size used_swap; do
+        total=$(echo "$total + $size" | bc)
+        used=$(echo "$used + $used_swap" | bc)
+    done < <(swapon --show=SIZE,USED --bytes | awk 'NR>1 {print $1, $2}')
+
+    free=$(echo "$total - $used" | bc)
+    total_results[swapon_total]="$(convert_to_human_readable $(echo "$total/1024" | bc))"
+    total_results[swapon_used]="$(convert_to_human_readable $(echo "$used/1024" | bc))"
+    total_results[swapon_free]="$(convert_to_human_readable $(echo "$free/1024" | bc))"
+fi
+
+# 3. /proc/swaps file
+if [[ -f /proc/swaps ]]; then
+    swap_info=$(awk 'NR>1 {total+=$3; used+=$4} END {print total, used}' /proc/swaps)
+    total=$(echo $swap_info | awk '{print $1}')
+    used=$(echo $swap_info | awk '{print $2}')
+    free=$(echo "$total - $used" | bc)
+    total_results[proc_total]="$(convert_to_human_readable $total)"
+    total_results[proc_used]="$(convert_to_human_readable $used)"
+    total_results[proc_free]="$(convert_to_human_readable $free)"
+fi
+
+# 4. vmstat command
+if command_exists vmstat; then
+    total=$(vmstat -s | awk '/total swap/ {print $1}')
+    used=$(vmstat -s | awk '/used swap/ {print $1}')
+    free=$(echo "$total - $used" | bc)
+    total_results[vmstat_total]="$(convert_to_human_readable $total)"
+    total_results[vmstat_used]="$(convert_to_human_readable $used)"
+    total_results[vmstat_free]="$(convert_to_human_readable $free)"
+fi
+
+# 5. top command
+if command_exists top; then
+    # Capture top output
+    top_output=$(top -bn1 | grep -i "MiB Swap:")
+
+    # Check if top output contains swap information
+    if [[ ! -z "$top_output" ]]; then
+        # Clean up the top output to remove commas and extra spaces
+        cleaned_output=$(echo "$top_output" | sed 's/,//g' | awk '{$1=$1};1')
+
+        # Extract swap values using more robust field targeting
+        total=$(echo "$cleaned_output" | awk '{print $3}')  # 3rd field is the total value
+        free=$(echo "$cleaned_output" | awk '{print $5}')   # 5th field is the free value
+        used=$(echo "$cleaned_output" | awk '{print $7}')   # 7th field is the used value
+
+        # Convert from MiB to KiB (since the other commands are in KiB)
+        total_kb=$(echo "$total * 1024" | bc)
+        free_kb=$(echo "$free * 1024" | bc)
+        used_kb=$(echo "$used * 1024" | bc)
+
+        # Convert values to human-readable format
+        total_results[top_total]="$(convert_to_human_readable $total_kb)"
+        total_results[top_free]="$(convert_to_human_readable $free_kb)"
+        total_results[top_used]="$(convert_to_human_readable $used_kb)"
+    else
+        # If the swap line is missing, mark as N/A
+        total_results[top_total]="N/A"
+        total_results[top_free]="N/A"
+        total_results[top_used]="N/A"
+    fi
+fi
+
+# Print description
+echo -e "${RED}This table provides a summary of system swap usage as reported by different methods.${NC}"
+
+# Print results table
+printf "${BLUE}%-12s %-20s %-20s %-20s${NC}\n" "Method" "Total (GB/MB/KB)" "Used (GB/MB/KB)" "Free (GB/MB/KB)"
+printf "${YELLOW}%-12s %-20s %-20s %-20s${NC}\n" "------" "------------------" "-----------------" "----------------"
+
+# Display formatted output
+for method in free swapon proc vmstat top; do
+    printf "${GREEN}%-12s${NC} %-20s %-20s %-20s\n" \
+        "$method" \
+        "${total_results[${method}_total]}" \
+        "${total_results[${method}_used]}" \
+        "${total_results[${method}_free]}"
+done
