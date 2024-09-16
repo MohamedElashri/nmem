@@ -1,0 +1,77 @@
+#!/bin/bash
+
+# Define color codes
+COLOR_LABEL="\033[1;33m"  # Yellow
+COLOR_KB="\033[1;31m"     # Red for KB
+COLOR_MB="\033[1;32m"     # Green for MB
+COLOR_GB="\033[1;36m"     # Cyan for GB
+COLOR_TB="\033[1;35m"     # Magenta for TB
+COLOR_PB="\033[1;37m"     # White for PB
+COLOR_RESET="\033[0m"     # Reset to default color
+
+# Function to convert KB to a human-readable format and apply colors
+convert_memory() {
+    local value_kb=$1
+    local value_human
+    local color
+
+    if [ $value_kb -ge 1099511627776 ]; then
+        value_human=$(echo "scale=2; $value_kb/1099511627776" | bc)
+        color=$COLOR_PB
+        echo -e "${color}${value_human} PB${COLOR_RESET}"
+    elif [ $value_kb -ge 1073741824 ]; then
+        value_human=$(echo "scale=2; $value_kb/1073741824" | bc)
+        color=$COLOR_TB
+        echo -e "${color}${value_human} TB${COLOR_RESET}"
+    elif [ $value_kb -ge 1048576 ]; then
+        value_human=$(echo "scale=2; $value_kb/1048576" | bc)
+        color=$COLOR_GB
+        echo -e "${color}${value_human} GB${COLOR_RESET}"
+    elif [ $value_kb -ge 1024 ]; then
+        value_human=$(echo "scale=2; $value_kb/1024" | bc)
+        color=$COLOR_MB
+        echo -e "${color}${value_human} MB${COLOR_RESET}"
+    else
+        value_human=$value_kb
+        color=$COLOR_KB
+        echo -e "${color}${value_human} KB${COLOR_RESET}"
+    fi
+}
+
+# Read and store the memory information
+mem_info=()
+while IFS=":" read -r label value; do
+    mem_info+=("$label:$value")
+done < /proc/meminfo
+
+# Calculate the halfway point to divide the memory info into two columns
+total_lines=${#mem_info[@]}
+halfway_point=$(( (total_lines + 1) / 2 ))  # Ceiling of half the total lines
+
+# Print the memory info in two columns
+for i in $(seq 0 $((halfway_point - 1))); do
+    # Get the current line and the line from the second half
+    left_label_value=${mem_info[i]}
+    right_label_value=${mem_info[$((i + halfway_point))]}
+    
+    # Process the left column
+    if [ -n "$left_label_value" ]; then
+        left_label=$(echo "$left_label_value" | cut -d':' -f1)
+        left_value=$(echo "$left_label_value" | cut -d':' -f2 | tr -d ' ' | sed 's/[^0-9]//g')
+        left_converted_value=$(convert_memory $left_value)
+        printf "${COLOR_LABEL}%-25s${COLOR_RESET} %25s" "$left_label" "$left_converted_value"
+    else
+        printf "%-25s %25s" "" ""  # Empty line if no value
+    fi
+
+    # Process the right column
+    if [ -n "$right_label_value" ]; then
+        right_label=$(echo "$right_label_value" | cut -d':' -f1)
+        right_value=$(echo "$right_label_value" | cut -d':' -f2 | tr -d ' ' | sed 's/[^0-9]//g')
+        right_converted_value=$(convert_memory $right_value)
+        printf "   ${COLOR_LABEL}%-25s${COLOR_RESET} %25s" "$right_label" "$right_converted_value"
+    fi
+
+    # Newline after printing both columns
+    echo ""
+done
