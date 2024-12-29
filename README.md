@@ -2,18 +2,12 @@
 
 `nmem` is a lightweight Bash script designed to provide a quick overview of system memory usage. While similar in functionality to the GNU `free` command, `nmem` is not intended as a direct replacement. Instead, it's a simplified tool offering basic insights into memory status on Linux systems. Its scope is limited to providing essential memory metrics in a human-readable format, with optional real-time monitoring.
 
-## Project Scope
+## Project Scope and Limitations
 
-- **Purpose**: `nmem` aims to give users a straightforward way to check memory usage without the complexity of the full `free` utility. It is perfect for those who want a quick glance at memory status, whether for personal monitoring or lightweight system management.
-- **Not a `free` Alternative**: This script is not meant to replace the `free` command from the GNU Core Utilities. It lacks many of the advanced features and platform integrations of `free`.
-- **No Distribution Platform**: `nmem` will not be available through package managers or distributions. It is provided as a standalone script for users to install manually if they find it useful.
+- **Scope**: `nmem` provides a basic view of system memory. It does not offer the full range of metrics and options that `free` provides.
+- **Linux Only**: The script is designed for Linux systems with the `/proc/meminfo` file. It may not work on non-Linux systems.
+- **No Package Management**: This tool will not be included in any package managers. It is intended for manual installation only.
 
-## Features
-
-- Displays basic memory metrics: Total, Used, Free, Buffers, and Cached.
-- Supports various units: Bytes, Kilobytes, Megabytes, Gigabytes, and human-readable format.
-- Real-time monitoring with the `--watch` flag, refreshing memory stats every second.
-- Lightweight and does not require any external dependencies beyond a POSIX-compliant shell.
 
 ## Installation
 
@@ -87,11 +81,6 @@ This will show something like the following
   nmem -g --watch
   ```
 
-## Limitations
-
-- **Scope**: `nmem` provides a basic view of system memory. It does not offer the full range of metrics and options that `free` provides.
-- **Linux Only**: The script is designed for Linux systems with the `/proc/meminfo` file. It may not work on non-Linux systems.
-- **No Package Management**: This tool will not be included in any package managers. It is intended for manual installation only.
 
 ## Contributing
 
